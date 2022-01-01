@@ -31,6 +31,25 @@ from os.path import isfile, join
 from PIL import Image
 from termcolor import colored
 from TextExtractApi.TextExtract import TextExtractFunctions
+from TextExtractApi.TextExtract import TesseractOCR
+import cv2
+
+class WID_ExtractFunctions(TextExtractFunctions):
+    def image_to_string_only(image_path, lang):
+        """
+            Extract result from image without matching expected text
+        Args:
+            image_path (str) : The path of image
+            lang (str) : The Language of text
+        Returns:
+            (tuple): tuple containing:
+                str : The result text of image (result)
+                int : The scale of image (scale)
+        """
+        ocr_object = TesseractOCR(lang)
+        result, NA, scale = ocr_object.image_to_string(image_path, pre_process_img=False)
+        return result, scale
+   
 
 # TODO: Проверить - работает ли настройка?
 Image.MAX_IMAGE_PIXELS = None
@@ -97,7 +116,6 @@ def sounds_reasonable(item):
 
 # Поиск таймстампов в строке
 def find_timestamps(text):
-    print(text)
     # Примеры строк с датами:
     #
     # Thu, 01-Jan-197 0 00:00:01 GMT
@@ -111,8 +129,7 @@ def find_timestamps(text):
     # 1198 11/01/2021 user! Button DS1994 3 MNonk308aTens cventn ceolinapont Yenex
 
     dtmatcher = DatetimeMatcher()
-    # layout = search = r'%d\/%m\/%Y'
-    layout = search = r'%d\/%M\/%Y'
+    layout = search = r'%d(\/|\.)%M(\/|\.)%Y'
     
     dates = dtmatcher.extract_datetimes(search, text)
     results = []
@@ -137,7 +154,7 @@ def img2txt_on_lang(dir_path, language):
         imgName = dir_path + '\\'+img
         txtFileName = dir_path+'\\{}\\'.format(language) + img + '.{}.txt'.format(language)
         if not os.path.exists(txtFileName) or os.stat(txtFileName).st_size == 0:
-            result,scale=TextExtractFunctions.image_to_string_only_nopreprocess(imgName, lang=language)
+            result,scale=WID_ExtractFunctions.image_to_string_only(imgName, lang=language)
             if result:
                 print("=== Image file: {} ===".format(imgName))
                 print("\n\t", "=" * 10,"  Text in", colored("{}: ".format(language), 'green'), "=" * 10, "\n")
