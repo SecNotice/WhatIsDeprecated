@@ -4,7 +4,7 @@
 Copyleft 2021-22 by Roman M. Yudichev (industrialSAST@ya.ru)
 
 Usage:
-    ScrTimeCheck.py -c | --check <docx-file> <date>
+    ScrTimeCheck.py -c | --check <docx-file-mask> <date>
     ScrTimeCheck.py -s | --save <docx-file>
     ScrTimeCheck.py -g | --get-text <img-dir>
     ScrTimeCheck.py -p | --parse <txt-dir>
@@ -12,14 +12,14 @@ Usage:
     ScrTimeCheck.py -v | --version
     
 Options:
-    -c --check     Комплексная проверка файла на наличие скриншотов с датами ранее указанной.
+    -c --check     Комплексная проверка файлов на наличие скриншотов с датами ранее указанной.
     -s --save      Разобрать файл документа, найти картинки, сохранить их в каталог.
     -g --get-text  Выделить из картинок в каталоге текст (eng, rus) и сохранить в файлы "*.eng.txt" и "*.rus.txt".
     -p --parse     Искать в файлах с распознанным текстом все сигнатуры даты/времени.
     -h --help      Show this screen.
     -v --version   Show version.
 """
-
+import glob
 import colorama
 import datetime
 from datetime_matcher import DatetimeMatcher
@@ -32,12 +32,18 @@ from PIL import Image
 from termcolor import colored
 from TextExtractApi.TextExtract import TextExtractFunctions
 from TextExtractApi.TextExtract import TesseractOCR
-import cv2
+
 
 # TODO: Fix error while russian text recognition.
 # TODO: Increase CPU usage and total productivity and speed of work.
 
-class WID_ExtractFunctions(TextExtractFunctions):
+# TODO: Проверить - работает ли настройка?
+Image.MAX_IMAGE_PIXELS = None
+
+ScrTimeCheck_version = '1.2'
+
+
+class WidExtractfunctions(TextExtractFunctions):
     def image_to_string_only(image_path, lang):
         """
             Extract result from image without matching expected text
@@ -50,14 +56,8 @@ class WID_ExtractFunctions(TextExtractFunctions):
                 int : The scale of image (scale)
         """
         ocr_object = TesseractOCR(lang)
-        result, NA, scale = ocr_object.image_to_string(image_path, pre_process_img=False)
+        result, na, scale = ocr_object.image_to_string(image_path, pre_process_img=False)
         return result, scale
-
-
-# TODO: Проверить - работает ли настройка?
-Image.MAX_IMAGE_PIXELS = None
-
-ScrTimeCheck_version = '1.2'
 
 
 def uniquify(path):
@@ -65,16 +65,16 @@ def uniquify(path):
     counter = 0
 
     while os.path.exists(path):
-        print("   exist: ", path)
         if counter > 0:
+            print("Output directory already exist: {}".format(path))
             path = filename + "(" + str(counter) + ")" + extension
         counter += 1
 
     return path
 
 
-def create_image_dir(filename):
-    image_dir_name = uniquify(os.getcwd() + '\\' + filename)
+def create_image_dir(filename, date):
+    image_dir_name = uniquify(os.getcwd() + '\\' + filename + '_{}'.format(date))
 
     print("image_dir_name = ", image_dir_name)
     os.mkdir(image_dir_name)
@@ -86,25 +86,29 @@ def create_image_dir(filename):
 # Создать каталог для изображений.
 # Сохранить в каталог все изображения, которые есть в файле документа
 #
-def save_images(filepath):
+def save_images(filepath, date):
     doc = Document(filepath)
-    image_dir_name = create_image_dir(os.path.basename(filepath)[:-5])
+    image_dir_name = create_image_dir(os.path.basename(filepath)[:-5], date)
     print("Writing images from {} document to separate files...".format(filepath))
-
+    total = 0
     # Количество разрядов в индексе картинки
     num_lengh = len(str(len(doc.inline_shapes)))
     for count, s in enumerate(doc.inline_shapes):
-        contentID = s._inline.graphic.graphicData.pic.blipFill.blip.embed
-        contentType = doc.part.related_parts[contentID].content_type
-        if not contentType.startswith('image'):
+        total = count
+        content_id = s._inline.graphic.graphicData.pic.blipFill.blip.embed
+        content_type = doc.part.related_parts[content_id].content_type
+        if not content_type.startswith('image'):
             continue
         # Если имена изображений совпадают, дополнить имена файлов уникальными суффиксами.
         # Цифровые индексы картинок делать одинаковой длины, добивая лидирующими нулями до нужной.
-        imgName = uniquify("{}\\".format(image_dir_name) + str(count+1).zfill(num_lengh) + '_' + os.path.basename(doc.part.related_parts[contentID].partname))
-        imgData = doc.part.related_parts[contentID]._blob
+        img_name = uniquify("{}\\".format(image_dir_name) + str(count + 1).zfill(num_lengh) + '_' + os.path.basename(
+            doc.part.related_parts[content_id].partname))
+        img_data = doc.part.related_parts[content_id]._blob
 
-        with open(imgName, 'wb') as fp:
-            fp.write(imgData)
+        with open(img_name, 'wb') as fp:
+            fp.write(img_data)
+    print("{} images has been saved.".format(total))
+
     return image_dir_name
 
 
@@ -114,12 +118,8 @@ def sounds_reasonable(item):
     future = datetime.date(2099, 12, 31)
 
     present = item.date()
-    return (
-        # Проверка на "до-Unix'овую эру"
-            past < present and
-            # Проверка на "будущее"
-            present < future
-    )
+    # Проверка на "до-Unix'овую эру" и на "будущее"
+    return past < present < future
 
 
 # Поиск таймстампов в строке
@@ -144,7 +144,7 @@ def find_timestamps(text, date):
 
     if dates:
         for item in dates:
-            if (sounds_reasonable(item)):
+            if sounds_reasonable(item):
                 if item.date() < datetime.date.fromisoformat(date):
                     results.append(item)
     return results
@@ -163,12 +163,12 @@ def img2txt_on_lang(dir_path, language):
     # TODO: Ускорить проверку уже распарсенного
     for img in [f for f in listdir(dir_path) if isfile(join(dir_path, f))]:
         # TODO: Вставить прогрессбар
-        imgName = dir_path + '\\' + img
-        txtFileName = d_path + '\\{}\\'.format(language) + img + '.{}.txt'.format(language)
-        if not os.path.exists(txtFileName) or os.stat(txtFileName).st_size == 0:
-            result, scale = WID_ExtractFunctions.image_to_string_only(imgName, lang=language)
+        img_name = dir_path + '\\' + img
+        txt_file_name = d_path + '\\{}\\'.format(language) + img + '.{}.txt'.format(language)
+        if not os.path.exists(txt_file_name) or os.stat(txt_file_name).st_size == 0:
+            result, scale = WidExtractfunctions.image_to_string_only(img_name, lang=language)
             if result:
-                with open(txtFileName, 'w', encoding='utf-8') as fp:
+                with open(txt_file_name, 'w', encoding='utf-8') as fp:
                     fp.write(result)
         else:
             continue
@@ -180,7 +180,7 @@ def img2txt(dir_path):
 
 
 # Печать найденного текста с подсветкой найденных таймстампов
-def print_w_highlight(text):
+def print_w_highlight(text, date):
     for s in text.split('\n'):
         if find_timestamps(s, date):
             print(colored(s, 'red'))
@@ -191,71 +191,75 @@ def print_w_highlight(text):
 
 # Для каждого текстового файла в указанном каталоге
 # распознать дату в каждой строке
-def process_txt_dir(dir, date):
+def process_txt_dir(txtdir, date):
     print("Starting text files processing...")
-    for txt_file in [f for f in listdir(dir) if isfile(join(dir, f))]:
-        with open(join(dir, txt_file), 'r', encoding='utf-8') as fp:
+    for txt_file in [f for f in listdir(txtdir) if isfile(join(txtdir, f))]:
+        with open(join(txtdir, txt_file), 'r', encoding='utf-8') as fp:
             text = fp.read()
             results = find_timestamps(text, date)
             if results:
                 print(
-                    "The following dates were found in the file {} (converted in '%d/%m/%Y' layout):".format(txt_file))
+                    "Found in {}:".format(txt_file))
                 for item in results:
                     print(item.strftime('%d/%m/%Y'))
 
 
 # Проверить file на наличие на скриншотах дат не позже date
-def check_file(file, date):
+def check_files(file_mask, date):
     # 1 Вывести задание на экран
-    print("Task: to find the timestamps earlier than {} at the file {}.\n\n".format(date, file))
+    print("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, file_mask))
 
-    # 2 Сохранить картинки в каталог
-    img_dir = save_images(file)
+    # Найти все файлы, удовлетворяющие маске
+    for file in glob.iglob(file_mask, recursive=True):
+        if os.path.isfile(file):
+            print("Processing file {}...\n".format(file))
+            # 2 Сохранить картинки в каталог
+            img_dir = save_images(file, date)
 
-    # 3 Получить текст из картинок
-    if os.path.exists(img_dir):
-        txt_eng_dir, txt_rus_dir = img2txt(img_dir)
+            # 3 Получить текст из картинок
+            if os.path.exists(img_dir):
+                txt_eng_dir, txt_rus_dir = img2txt(img_dir)
 
-        # 4 Обработать текст
-        if os.path.exists(txt_eng_dir):
-            process_txt_dir(txt_eng_dir, date)
-        if os.path.exists(txt_rus_dir):
-            process_txt_dir(txt_rus_dir, date)
+                # 4 Обработать текст
+                if os.path.exists(txt_eng_dir):
+                    process_txt_dir(txt_eng_dir, date)
+                if os.path.exists(txt_rus_dir):
+                    process_txt_dir(txt_rus_dir, date)
 
 
-def check_arguments(arguments):
-    if arguments["--save"]:
-        if arguments["<docx-file>"]:
-            if os.path.exists(arguments["<docx-file>"]):
-                save_images(arguments["<docx-file>"])
+def check_arguments(args):
+    if args["--save"]:
+        if args["<docx-file>"]:
+            if os.path.exists(args["<docx-file>"]):
+                save_images(args["<docx-file>"], args["<date>"])
             else:
                 print("File {} does not exist. Could you check file path, pls?")
         else:
             print("Please point docx file.")
-    elif arguments["--get-text"]:
-        if arguments["<img-dir>"]:
-            if os.path.exists(arguments["<img-dir>"]):
-                img2txt(arguments["<img-dir>"])
+    elif args["--get-text"]:
+        if args["<img-dir>"]:
+            if os.path.exists(args["<img-dir>"]):
+                img2txt(args["<img-dir>"])
             else:
-                print("Directory {} with texts does not exist...".format(arguments["<img-dir>"]))
+                print("Directory {} with texts is not exist...".format(args["<img-dir>"]))
         else:
             print("Please point image directory to text recognize.")
-    elif arguments["--parse"]:
-        if arguments["<txt-dir>"]:
-            if os.path.exists(arguments["<txt-dir>"]):
-                process_txt_dir(arguments["<txt-dir>"])
+    elif args["--parse"]:
+        if args["<txt-dir>"]:
+            if os.path.exists(args["<txt-dir>"]):
+                process_txt_dir(args["<txt-dir>"], args["<date>"])
             else:
-                print("Directory {} with texts does not exist...".format(arguments["<txt-dir>"]))
+                print("Directory {} with texts is not exist...".format(args["<txt-dir>"]))
         else:
             print("Please point directory to store txt files.")
-    elif arguments["--check"] and arguments["<docx-file>"] and arguments["<date>"]:
-        if os.path.exists(arguments["<docx-file>"]):
-            if arguments["<date>"]:
-                check_file(arguments["<docx-file>"], arguments["<date>"])
-            else:
-                print('Please point the deadline date ("YYYY-MM-DD").')
+    elif args["--check"] and args["<docx-file-mask>"] and args["<date>"]:
+        if args["<date>"]:
+            check_files(args["<docx-file-mask>"], args["<date>"])
         else:
-            print("File {} does not exist. Could you check file path, pls?".format(arguments["<docx-file>"]))
+            print('Please point the deadline date ("YYYY-MM-DD").')
+    else:
+        print("Please point all the arguments correctly.")
+        print(args)
 
 
 ###############################################################################
@@ -264,5 +268,5 @@ if __name__ == "__main__":
     try:
         arguments = docopt.docopt(__doc__, version='ScrTimeCheck ' + ScrTimeCheck_version)
         check_arguments(arguments)
-    except (docopt.DocoptExit) as e:
+    except docopt.DocoptExit as e:
         print(e)
