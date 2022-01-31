@@ -7,6 +7,8 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 Python >= 3.8.
 
+```sudo apt-get install -y python3-opencv```
+
 На Astra Linux Orel (2.12.43)  - установить curl, а затем pip3:
 
 `sudo apt install curl`

@@ -27,7 +27,7 @@ Options:
 import glob
 import colorama
 import datetime
-from datetime_matcher import DatetimeMatcher
+import datetime_matcher
 import docopt
 from docx import Document
 import os
@@ -141,7 +141,7 @@ def find_timestamps(text, date):
     # 1199 11/01/2021 iButton DS1996 DI (Button DS1996 DI Bxoa agmuHwcTpaTopa Yenex
     # 1198 11/01/2021 user! Button DS1994 3 MNonk308aTens cventn ceolinapont Yenex
 
-    dtmatcher = DatetimeMatcher()
+    dtmatcher = datetime_matcher.DatetimeMatcher()
     search = r'%d(\/|\.|\\)%M(\/|\.|\\)%Y'
 
     dates = dtmatcher.extract_datetimes(search, text)
