@@ -18,6 +18,11 @@ Options:
     -p --parse     Искать в файлах с распознанным текстом все сигнатуры даты/времени.
     -h --help      Show this screen.
     -v --version   Show version.
+
+    Примеры:
+         ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10" - найти рекурсивно в файлах doc* _всех_ подкаталогов
+                каталога topdir любой степени вложенности (маска "**") скриншоты с датами ранее 10 января 2021 года.
+
 """
 import glob
 import colorama
