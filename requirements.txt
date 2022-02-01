@@ -5,6 +5,7 @@ docopt
 python-docx
 termcolor
 TextExtract
+textract
 opencv-python
 date-extractor
 docx
