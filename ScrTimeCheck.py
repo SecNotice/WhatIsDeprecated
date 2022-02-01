@@ -33,6 +33,7 @@ from docx import Document
 import os
 from os import listdir
 from os.path import isfile, join
+from pathlib import Path
 from PIL import Image
 from termcolor import colored
 from TextExtractApi.TextExtract import TextExtractFunctions
@@ -158,18 +159,33 @@ def find_timestamps(text, date):
 #
 # Создать каталог для распознаваемого языка текста.
 # Распознать текст на заданном языке на изображениях и сохранить в файлы.
+# dir_path - путь к каталогу с изображениями
+# language - язык распознавания
 #
 def img2txt_on_lang(dir_path, language):
+    # Отобразить сообщение для пользователя
     print("img2txt_on_lang ({})".format(language))
-    d_path = dir_path + '\\text'
-    if not os.path.exists(d_path + '\\{}\\'.format(language)):
-        os.makedirs(d_path + '\\{}\\'.format(language), exist_ok=True)
+    # Путь к каталогу с изображениями
+    d_path = Path(dir_path)
+    # Создать подкаталог для текстовых файлов на целевом языке
+    # Имя подкаталога для текстовых файлов
+    text_dir = d_path / "text"
+    # Имя подкаталога для текстов на текущем распознаваемом языке
+    lang_dir = text_dir / "{}".format(language)
+    # Если подкаталог ещё не существует - создать его
+    if not os.path.exists(lang_dir):
+        os.makedirs(lang_dir, exist_ok=True)
 
     # TODO: Ускорить проверку уже распарсенного
-    for img in [f for f in listdir(dir_path) if isfile(join(dir_path, f))]:
+    # Перечислить все файлы изображений
+    for img in [f for f in listdir(d_path) if isfile(join(d_path / f))]:
         # TODO: Вставить прогрессбар
-        img_name = dir_path + '\\' + img
-        txt_file_name = d_path + '\\{}\\'.format(language) + img + '.{}.txt'.format(language)
+        # Собрать полный путь к файлу изображения
+        img_name = d_path / img
+        # Собрать полный путь к файлу с распозанным текстом
+        txt_file_name = lang_dir / "{}.{}.txt".format(img, language)
+        print(txt_file_name)
+        # Если изображение ещё не распознано - запустить распознавание
         if not os.path.exists(txt_file_name) or os.stat(txt_file_name).st_size == 0:
             result, scale = WidExtractfunctions.image_to_string_only(img_name, lang=language)
             if result:
@@ -177,9 +193,10 @@ def img2txt_on_lang(dir_path, language):
                     fp.write(result)
         else:
             continue
-    return d_path + '\\{}\\'.format(language)
+    return lang_dir
 
 
+# dir_path - путь к каталогу с изображениями
 def img2txt(dir_path):
     return img2txt_on_lang(dir_path, 'eng'), img2txt_on_lang(dir_path, 'rus')
 
@@ -225,10 +242,12 @@ def check_files(file_mask, date):
             if os.path.exists(img_dir):
                 txt_eng_dir, txt_rus_dir = img2txt(img_dir)
 
-                # 4 Обработать текст
+                # 4 Обработать текст и найти вхождения дат
                 if os.path.exists(txt_eng_dir):
+                    print("English text...")
                     process_txt_dir(txt_eng_dir, date)
                 if os.path.exists(txt_rus_dir):
+                    print("Russian text...")
                     process_txt_dir(txt_rus_dir, date)
 
 
