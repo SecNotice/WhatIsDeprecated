@@ -94,7 +94,7 @@ def save_images(filepath, date):
 
         with open(img_name, 'wb') as fp:
             fp.write(img_data)
-    print("{} images has been saved.".format(total))
+    print("{} images has been saved.".format(total+1))
 
     return image_dir_name
 
