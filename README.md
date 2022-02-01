@@ -8,10 +8,14 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 Python >= 3.8.
 
 ### Tesseract:
-Windows:  https://github.com/UB-Mannheim/tesseract/wiki 
+**Windows:**  https://github.com/UB-Mannheim/tesseract/wiki
 
-Linux: `sudo apt install tesseract-ocr -y`
+В ходе инсталляции нужно выбрать языки, для которых будут установлены тренировочные данные (как минимум - Russian, Englis).
 
+**Linux:** 
+
+`sudo apt install tesseract-ocr -y`
+`sudo apt install tesseract-ocr-rus -y`
 
 На Astra Linux Orel (2.12.43)  - установить curl, а затем pip3:
 
