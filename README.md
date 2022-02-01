@@ -7,12 +7,11 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 Python >= 3.8.
 
-Tesseract:
+### Tesseract:
+Windows:  https://github.com/UB-Mannheim/tesseract/wiki 
 
-```apt-get install python-dev libxml2-dev libxslt1-dev antiword unrtf poppler-utils pstotext tesseract-ocr \
-flac ffmpeg lame libmad0 libsox-fmt-mp3 sox libjpeg-dev swig```
+Linux: `sudo apt install tesseract-ocr -y`
 
-```sudo apt-get install -y python3-opencv```
 
 На Astra Linux Orel (2.12.43)  - установить curl, а затем pip3:
 
@@ -28,13 +27,8 @@ flac ffmpeg lame libmad0 libsox-fmt-mp3 sox libjpeg-dev swig```
 
 `pip install -r ./requirements.txt`
 
-2. Скопировать rus.traineddata в каталог:
-
-**Windows:** `c:\Users\<user_name>\AppData\Local\Programs\Python\<версия python>\Lib\site-packages\TextExtractApi\tessdata\` 
-
-**Linux:** `/usr/local/share/tessdata/`
-
-`sudo mv -v rus.traineddata /usr/local/share/tessdata/`
 
 ## Использование
 
+    `ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
+    `ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`

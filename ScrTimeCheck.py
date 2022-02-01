@@ -36,34 +36,15 @@ from os.path import isfile, join
 from pathlib import Path
 from PIL import Image
 from termcolor import colored
-from TextExtractApi.TextExtract import TextExtractFunctions
-from TextExtractApi.TextExtract import TesseractOCR
-
+import pytesseract
 
 # TODO: Fix error while russian text recognition.
 # TODO: Increase CPU usage and total productivity and speed of work.
 
 # TODO: Проверить - работает ли настройка?
-Image.MAX_IMAGE_PIXELS = None
+# Image.MAX_IMAGE_PIXELS = None
 
-ScrTimeCheck_version = '1.2'
-
-
-class WidExtractfunctions(TextExtractFunctions):
-    def image_to_string_only(image_path, lang):
-        """
-            Extract result from image without matching expected text
-        Args:
-            image_path (str) : The path of image
-            lang (str) : The Language of text
-        Returns:
-            (tuple): tuple containing:
-                str : The result text of image (result)
-                int : The scale of image (scale)
-        """
-        ocr_object = TesseractOCR(lang)
-        result, na, scale = ocr_object.image_to_string(image_path, pre_process_img=False)
-        return result, scale
+ScrTimeCheck_version = '2.0.1'
 
 
 def uniquify(path):
@@ -187,7 +168,7 @@ def img2txt_on_lang(dir_path, language):
         print(txt_file_name)
         # Если изображение ещё не распознано - запустить распознавание
         if not os.path.exists(txt_file_name) or os.stat(txt_file_name).st_size == 0:
-            result, scale = WidExtractfunctions.image_to_string_only(img_name, lang=language)
+            result = pytesseract.image_to_string(Image.open(img_name), lang=language)
             if result:
                 with open(txt_file_name, 'w', encoding='utf-8') as fp:
                     fp.write(result)

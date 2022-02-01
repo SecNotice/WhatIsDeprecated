@@ -11,3 +11,4 @@ date-extractor
 docx
 Pillow
 pathlib
+pytesseract
