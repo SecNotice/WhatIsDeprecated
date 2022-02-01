@@ -73,16 +73,16 @@ def uniquify(path):
     while os.path.exists(path):
         if counter > 0:
             print("Output directory already exist: {}".format(path))
-            path = filename + "(" + str(counter) + ")" + extension
+            path = "{}({}){}".format(filename, str(counter), extension)
         counter += 1
 
     return path
 
 
 def create_image_dir(filename, date):
-    image_dir_name = uniquify(os.getcwd() + '\\' + filename + '_{}'.format(date))
+    image_dir_name = uniquify(Path(os.getcwd()) / Path("{}_{}".format(filename, date)))
 
-    print("image_dir_name = ", image_dir_name)
+    print("image_dir_name = {}".format(image_dir_name))
     os.mkdir(image_dir_name)
 
     return image_dir_name
@@ -107,8 +107,8 @@ def save_images(filepath, date):
             continue
         # Если имена изображений совпадают, дополнить имена файлов уникальными суффиксами.
         # Цифровые индексы картинок делать одинаковой длины, добивая лидирующими нулями до нужной.
-        img_name = uniquify("{}\\".format(image_dir_name) + str(count + 1).zfill(num_lengh) + '_' + os.path.basename(
-            doc.part.related_parts[content_id].partname))
+        img_name = uniquify(Path("{}".format(image_dir_name)) / Path("{}_{}".format(str(count + 1).zfill(num_lengh),
+            os.path.basename(doc.part.related_parts[content_id].partname))))
         img_data = doc.part.related_parts[content_id]._blob
 
         with open(img_name, 'wb') as fp:
