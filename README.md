@@ -59,7 +59,8 @@ Screenshot recognition, information extraction to find obsolete artifacts.
     `python3 ./ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
     `python3 ./ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
 
-Под Windows используйте команду `py`:
+Под Windows используйте команду `py -3`:
+
     `py -3 ./ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
     `py -3 ./ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
 
