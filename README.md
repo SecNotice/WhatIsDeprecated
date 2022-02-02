@@ -41,8 +41,8 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 ## Использование
 
-    `ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
-    `ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
+    `python3 ./ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
+    `python3 ./ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
 
 По результатам работы в текущем каталоге будет создан каталог (каталоги, если обрабатываемых файлов несколько) с именем обрабатываемого файла и указанной даты (например "report.docx_2021-01-10").
 
