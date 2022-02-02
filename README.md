@@ -45,6 +45,10 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 `pip3 install -r ./requirements.txt`
 
+или на Windows
+
+`py -3 -m pip install -r requirements.txt`
+
 
 ## Использование
 
@@ -54,6 +58,13 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
     `python3 ./ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
     `python3 ./ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
+
+Под Windows используйте команду `py`:
+    `py -3 ./ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
+    `py -3 ./ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
+
+
+
 
 По результатам работы в текущем каталоге будет создан каталог (каталоги, если обрабатываемых файлов несколько) с именем обрабатываемого файла и указанной даты (например "report.docx_2021-01-10").
 
