@@ -41,6 +41,8 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 ## Использование
 
+Для выполнения скрипта его с необходимыми параметрами нужно запустить с помощью интерпретатора **python3:**
+
     `python3 ./ScrTimeCheck.py -c ./report.docx  "2021-01-10"`
     `python3 ./ScrTimeCheck.py -c topdir/**/*.doc*  "2021-01-10"`
 
