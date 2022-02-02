@@ -10,5 +10,4 @@ opencv-python
 date-extractor
 docx
 Pillow
-pathlib
 pytesseract

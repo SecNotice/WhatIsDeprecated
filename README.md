@@ -35,7 +35,7 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 0. Установить git.
 
-1. Установить Python 3.
+1. Установить Python 3 версии старше 3.8.
 
 2. Установить Tesseract-OCR.
 
@@ -43,11 +43,11 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 4. Установить пакеты из requirements.txt:
 
-`pip3 install -r ./requirements.txt`
+`pip3 install -r ./requirements.txt --no-cache-dir`
 
 или на Windows
 
-`py -3 -m pip install -r requirements.txt`
+`py -3 -m pip install -r requirements.txt --no-cache-dir`
 
 
 ## Использование
