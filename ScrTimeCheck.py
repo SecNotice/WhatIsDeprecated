@@ -6,7 +6,6 @@ Copyleft 2021-22 by Roman M. Yudichev (industrialSAST@ya.ru)
 Usage:
     ScrTimeCheck.py -c | --check <docx-file-mask> <date>
     ScrTimeCheck.py -s | --save <docx-file>
-    ScrTimeCheck.py -g | --get-text <img-dir>
     ScrTimeCheck.py -p | --parse <txt-dir>
     ScrTimeCheck.py -h | --help
     ScrTimeCheck.py -v | --version
@@ -14,7 +13,6 @@ Usage:
 Options:
     -c --check     Комплексная проверка файлов на наличие скриншотов с датами ранее указанной.
     -s --save      Разобрать файл документа, найти картинки, сохранить их в каталог.
-    -g --get-text  Выделить из картинок в каталоге текст (eng, rus) и сохранить в файлы "*.eng.txt" и "*.rus.txt".
     -p --parse     Искать в файлах с распознанным текстом все сигнатуры даты/времени.
     -h --help      Show this screen.
     -v --version   Show version.
@@ -25,28 +23,22 @@ Options:
 
 """
 import glob
-import colorama
 import datetime
 import datetime_matcher
 import docopt
 from docx import Document
 import os
-from os import listdir
-from os.path import isfile, join
 from pathlib import Path
 from PIL import Image
 from termcolor import colored
 import pytesseract
 
-# TODO: Fix error while russian text recognition.
-# TODO: Increase CPU usage and total productivity and speed of work.
 
-# TODO: Проверить - работает ли настройка?
-# Image.MAX_IMAGE_PIXELS = None
+ScrTimeCheck_version = '2.0.2'
 
-ScrTimeCheck_version = '2.0.1'
+img_subdir_name = 'img'
 
-
+# Вернуть имя с уникальным префиксом типа "(1)", если есть дубликат
 def uniquify(path):
     filename, extension = os.path.splitext(path)
     counter = 0
@@ -59,12 +51,19 @@ def uniquify(path):
 
     return path
 
+def create_work_dir(filename, date):
+    p = uniquify(Path(os.getcwd()) / Path("{}_{}".format(filename, date)))
+    os.makedirs(p)
 
-def create_image_dir(filename, date):
-    image_dir_name = uniquify(Path(os.getcwd()) / Path("{}_{}".format(filename, date)))
+    return p
+
+
+def create_image_dir(work_dir):
+    image_dir_name = Path(work_dir) / img_subdir_name
 
     print("image_dir_name = {}".format(image_dir_name))
-    os.mkdir(image_dir_name)
+
+    os.makedirs(image_dir_name)
 
     return image_dir_name
 
@@ -73,9 +72,9 @@ def create_image_dir(filename, date):
 # Создать каталог для изображений.
 # Сохранить в каталог все изображения, которые есть в файле документа
 #
-def save_images(filepath, date):
+def save_images(filepath, dir):
     doc = Document(filepath)
-    image_dir_name = create_image_dir(os.path.basename(filepath)[:-5], date)
+
     print("Writing images from {} document to separate files...".format(filepath))
     total = 0
     # Количество разрядов в индексе картинки
@@ -88,15 +87,13 @@ def save_images(filepath, date):
             continue
         # Если имена изображений совпадают, дополнить имена файлов уникальными суффиксами.
         # Цифровые индексы картинок делать одинаковой длины, добивая лидирующими нулями до нужной.
-        img_name = uniquify(Path("{}".format(image_dir_name)) / Path("{}_{}".format(str(count + 1).zfill(num_lengh),
+        img_name = uniquify(Path("{}".format(dir)) / Path("{}_{}".format(str(count + 1).zfill(num_lengh),
             os.path.basename(doc.part.related_parts[content_id].partname))))
         img_data = doc.part.related_parts[content_id]._blob
 
         with open(img_name, 'wb') as fp:
             fp.write(img_data)
     print("{} images has been saved.".format(total+1))
-
-    return image_dir_name
 
 
 # Грубая проверка на опечатки и ошибки распознавания
@@ -143,23 +140,21 @@ def find_timestamps(text, date):
 # dir_path - путь к каталогу с изображениями
 # language - язык распознавания
 #
-def img2txt_on_lang(dir_path, language):
+def img2txt_on_lang(dir_path, text_dir_path, language):
     # Отобразить сообщение для пользователя
-    print("img2txt_on_lang ({})".format(language))
+    print("Start text recognition on [{}] language...".format(language))
+    print("dir_path = {}, text_dir_path = {}, language = {}".format(dir_path, text_dir_path, language))
     # Путь к каталогу с изображениями
     d_path = Path(dir_path)
     # Создать подкаталог для текстовых файлов на целевом языке
-    # Имя подкаталога для текстовых файлов
-    text_dir = d_path / "text"
     # Имя подкаталога для текстов на текущем распознаваемом языке
-    lang_dir = text_dir / "{}".format(language)
+    lang_dir = Path(text_dir_path) / Path("{}".format(language))
     # Если подкаталог ещё не существует - создать его
     if not os.path.exists(lang_dir):
         os.makedirs(lang_dir, exist_ok=True)
 
-    # TODO: Ускорить проверку уже распарсенного
     # Перечислить все файлы изображений
-    for img in [f for f in listdir(d_path) if isfile(join(d_path / f))]:
+    for img in [f for f in os.listdir(dir_path) if os.path.isfile(Path(dir_path) / Path(f))]:
         # TODO: Вставить прогрессбар
         # Собрать полный путь к файлу изображения
         img_name = d_path / img
@@ -178,8 +173,8 @@ def img2txt_on_lang(dir_path, language):
 
 
 # dir_path - путь к каталогу с изображениями
-def img2txt(dir_path):
-    return img2txt_on_lang(dir_path, 'eng'), img2txt_on_lang(dir_path, 'rus')
+def img2txt(img_dir_path, text_dir_path):
+    return img2txt_on_lang(img_dir_path, text_dir_path, 'eng'), img2txt_on_lang(img_dir_path, text_dir_path, 'rus')
 
 
 # Печать найденного текста с подсветкой найденных таймстампов
@@ -196,8 +191,8 @@ def print_w_highlight(text, date):
 # распознать дату в каждой строке
 def process_txt_dir(txtdir, date):
     print("Starting text files processing...")
-    for txt_file in [f for f in listdir(txtdir) if isfile(join(txtdir, f))]:
-        with open(join(txtdir, txt_file), 'r', encoding='utf-8') as fp:
+    for txt_file in [f for f in os.listdir(txtdir) if os.path.isfile(Path(txtdir) / Path(f))]:
+        with open(Path(txtdir) / Path(txt_file), 'r', encoding='utf-8') as fp:
             text = fp.read()
             results = find_timestamps(text, date)
             if results:
@@ -207,21 +202,44 @@ def process_txt_dir(txtdir, date):
                     print(item.strftime('%d/%m/%Y'))
 
 
+# Вывести задание на экран
+def show_task(f_mask, date):
+    print("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, f_mask))
+    count_files = 0
+    for file in glob.iglob(f_mask, recursive=True):
+        if os.path.isfile(file):
+            count_files +=1
+    if count_files == 0:
+        print("There are no files found.\nExit whithout any work done.")
+        exit(1)
+    else:
+        if count_files == 1:
+            print("There is one file found.")
+        else:
+            print("There are {} files found.".format(count_files))
+
 # Проверить file на наличие на скриншотах дат не позже date
 def check_files(file_mask, date):
-    # 1 Вывести задание на экран
-    print("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, file_mask))
+    show_task(file_mask, date)
 
     # Найти все файлы, удовлетворяющие маске
     for file in glob.iglob(file_mask, recursive=True):
         if os.path.isfile(file):
             print("Processing file {}...\n".format(file))
+            # Создать рабочий каталог
+            work_dir = create_work_dir(os.path.basename(file)[:-5], date)
+            # Создать каталог для изображений
+            image_dir_name = create_image_dir(work_dir)
+            # Создать каталог для текстов
+            txt_dir = Path(work_dir) / Path("text")
+            if not os.path.exists(txt_dir):
+                os.makedirs(txt_dir)
             # 2 Сохранить картинки в каталог
-            img_dir = save_images(file, date)
+            save_images(file, image_dir_name)
 
             # 3 Получить текст из картинок
-            if os.path.exists(img_dir):
-                txt_eng_dir, txt_rus_dir = img2txt(img_dir)
+            if os.path.exists(image_dir_name):
+                txt_eng_dir, txt_rus_dir = img2txt(image_dir_name, txt_dir)
 
                 # 4 Обработать текст и найти вхождения дат
                 if os.path.exists(txt_eng_dir):
@@ -241,14 +259,6 @@ def check_arguments(args):
                 print("File {} does not exist. Could you check file path, pls?")
         else:
             print("Please point docx file.")
-    elif args["--get-text"]:
-        if args["<img-dir>"]:
-            if os.path.exists(args["<img-dir>"]):
-                img2txt(args["<img-dir>"])
-            else:
-                print("Directory {} with texts is not exist...".format(args["<img-dir>"]))
-        else:
-            print("Please point image directory to text recognize.")
     elif args["--parse"]:
         if args["<txt-dir>"]:
             if os.path.exists(args["<txt-dir>"]):
@@ -269,7 +279,6 @@ def check_arguments(args):
 
 ###############################################################################
 if __name__ == "__main__":
-    colorama.init()
     try:
         arguments = docopt.docopt(__doc__, version='ScrTimeCheck ' + ScrTimeCheck_version)
         check_arguments(arguments)
