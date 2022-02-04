@@ -19,8 +19,7 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 **Linux:** 
 
-`sudo apt install tesseract-ocr -y`
-`sudo apt install tesseract-ocr-rus -y`
+`sudo apt install tesseract-ocr tesseract-ocr-rus -y`
 
 На Astra Linux Orel (2.12.43) для корректной работы утилиты pip для установки Python-модулей необходимо установить curl, а затем pip3:
 
