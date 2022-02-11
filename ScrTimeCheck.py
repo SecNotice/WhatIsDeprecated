@@ -173,16 +173,6 @@ def img2txt(img_dir_path, text_dir_path):
     return img2txt_on_lang(img_dir_path, text_dir_path, 'eng'), img2txt_on_lang(img_dir_path, text_dir_path, 'rus')
 
 
-# Печать найденного текста с подсветкой найденных таймстампов
-def print_w_highlight(text, date):
-    for s in text.split('\n'):
-        if find_timestamps(s, date):
-            print(colored(s, 'red'))
-        else:
-            print(colored(s, 'green'))
-    return
-
-
 # Для каждого текстового файла в указанном каталоге
 # распознать дату в каждой строке
 def process_txt_dir(txtdir, date):
