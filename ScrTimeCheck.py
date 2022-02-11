@@ -26,13 +26,13 @@ from docx import Document
 import os
 from pathlib import Path
 from PIL import Image
-from termcolor import colored
 import pytesseract
+from loguru import logger
 
 
-ScrTimeCheck_version = '2.0.2'
-
+ScrTimeCheck_version = '2.1.0'
 img_subdir_name = 'img'
+
 
 # Вернуть имя с уникальным префиксом типа "(1)", если есть дубликат
 def uniquify(path):
@@ -41,7 +41,7 @@ def uniquify(path):
 
     while os.path.exists(path):
         if counter > 0:
-            print("Output directory already exist: {}".format(path))
+            logger.info("Output directory already exist: {}".format(path))
             path = "{}({}){}".format(filename, str(counter), extension)
         counter += 1
 
@@ -57,7 +57,7 @@ def create_work_dir(filename, date):
 def create_image_dir(work_dir):
     image_dir_name = Path(work_dir) / img_subdir_name
 
-    print("image_dir_name = {}".format(image_dir_name))
+    logger.info("image_dir_name = {}".format(image_dir_name))
 
     os.makedirs(image_dir_name)
 
@@ -71,7 +71,7 @@ def create_image_dir(work_dir):
 def save_images(filepath, dir):
     doc = Document(filepath)
 
-    print("Writing images from {} document to separate files...".format(filepath))
+    logger.info("Writing images from {} document to separate files...".format(filepath))
     total = 0
     # Количество разрядов в индексе картинки
     num_lengh = len(str(len(doc.inline_shapes)))
@@ -89,7 +89,7 @@ def save_images(filepath, dir):
 
         with open(img_name, 'wb') as fp:
             fp.write(img_data)
-    print("{} images has been saved.".format(total+1))
+    logger.info("{} images has been saved.".format(total+1))
 
 
 # Грубая проверка на опечатки и ошибки распознавания
@@ -138,8 +138,8 @@ def find_timestamps(text, date):
 #
 def img2txt_on_lang(dir_path, text_dir_path, language):
     # Отобразить сообщение для пользователя
-    print("Start text recognition on [{}] language...".format(language))
-    print("dir_path = {}, text_dir_path = {}, language = {}".format(dir_path, text_dir_path, language))
+    logger.info("Start text recognition on [{}] language...".format(language))
+    logger.info("dir_path = {}, text_dir_path = {}, language = {}".format(dir_path, text_dir_path, language))
     # Путь к каталогу с изображениями
     d_path = Path(dir_path)
     # Создать подкаталог для текстовых файлов на целевом языке
@@ -156,7 +156,7 @@ def img2txt_on_lang(dir_path, text_dir_path, language):
         img_name = d_path / img
         # Собрать полный путь к файлу с распозанным текстом
         txt_file_name = lang_dir / "{}.{}.txt".format(img, language)
-        print(txt_file_name)
+        logger.info(txt_file_name)
         # Если изображение ещё не распознано - запустить распознавание
         if not os.path.exists(txt_file_name) or os.stat(txt_file_name).st_size == 0:
             result = pytesseract.image_to_string(Image.open(img_name), lang=language)
@@ -176,33 +176,32 @@ def img2txt(img_dir_path, text_dir_path):
 # Для каждого текстового файла в указанном каталоге
 # распознать дату в каждой строке
 def process_txt_dir(txtdir, date):
-    print("Starting text files processing...")
+    logger.info("Starting text files processing...")
     for txt_file in [f for f in os.listdir(txtdir) if os.path.isfile(Path(txtdir) / Path(f))]:
         with open(Path(txtdir) / Path(txt_file), 'r', encoding='utf-8') as fp:
             text = fp.read()
             results = find_timestamps(text, date)
             if results:
-                print(
-                    "Found in {}:".format(txt_file))
+                logger.info("Found in {}:".format(txt_file))
                 for item in results:
-                    print(item.strftime('%d/%m/%Y'))
+                    logger.info(item.strftime('%d/%m/%Y'))
 
 
 # Вывести задание на экран
 def show_task(f_mask, date):
-    print("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, f_mask))
+    logger.debug("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, f_mask))
     count_files = 0
     for file in glob.iglob(f_mask, recursive=True):
         if os.path.isfile(file):
             count_files +=1
     if count_files == 0:
-        print("There are no files found.\nExit whithout any work done.")
+        logger.debug("There are no files found.\nExit whithout any work done.")
         exit(1)
     else:
         if count_files == 1:
-            print("There is one file found.")
+            logger.debug("There is one file found.")
         else:
-            print("There are {} files found.".format(count_files))
+            logger.debug("There are {} files found.".format(count_files))
 
 # Проверить file на наличие на скриншотах дат не позже date
 def check_files(file_mask, date):
@@ -211,9 +210,10 @@ def check_files(file_mask, date):
     # Найти все файлы, удовлетворяющие маске
     for file in glob.iglob(file_mask, recursive=True):
         if os.path.isfile(file):
-            print("Processing file {}...\n".format(file))
             # Создать рабочий каталог
             work_dir = create_work_dir(os.path.basename(file)[:-5], date)
+            logger.add(Path(work_dir) / Path("date_in_images_report.log"), format = "{time} {message}", level = "INFO", rotation="100 KB", compression="zip")
+            logger.info("Processing file {}...\n".format(file))
             # Создать каталог для изображений
             image_dir_name = create_image_dir(work_dir)
             # Создать каталог для текстов
@@ -229,10 +229,10 @@ def check_files(file_mask, date):
 
                 # 4 Обработать текст и найти вхождения дат
                 if os.path.exists(txt_eng_dir):
-                    print("English text...")
+                    logger.info("English text...")
                     process_txt_dir(txt_eng_dir, date)
                 if os.path.exists(txt_rus_dir):
-                    print("Russian text...")
+                    logger.info("Russian text...")
                     process_txt_dir(txt_rus_dir, date)
 
 
@@ -241,10 +241,10 @@ def check_arguments(args):
         if args["<date>"]:
             check_files(args["<docx-file-mask>"], args["<date>"])
         else:
-            print('Please point the deadline date ("YYYY-MM-DD").')
+            logger.debug('Please point the deadline date ("YYYY-MM-DD").')
     else:
-        print("Please point all the arguments correctly.")
-        print(args)
+        logger.debug("Please point all the arguments correctly.")
+        logger.debug(args)
 
 
 ###############################################################################
