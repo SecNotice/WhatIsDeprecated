@@ -1,5 +1,4 @@
 # https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format
-colorama
 datetime_matcher
 docopt
 python-docx

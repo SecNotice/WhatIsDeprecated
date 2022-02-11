@@ -5,15 +5,11 @@ Copyleft 2021-22 by Roman M. Yudichev (industrialSAST@ya.ru)
 
 Usage:
     ScrTimeCheck.py -c | --check <docx-file-mask> <date>
-    ScrTimeCheck.py -s | --save <docx-file>
-    ScrTimeCheck.py -p | --parse <txt-dir>
     ScrTimeCheck.py -h | --help
     ScrTimeCheck.py -v | --version
     
 Options:
     -c --check     Комплексная проверка файлов на наличие скриншотов с датами ранее указанной.
-    -s --save      Разобрать файл документа, найти картинки, сохранить их в каталог.
-    -p --parse     Искать в файлах с распознанным текстом все сигнатуры даты/времени.
     -h --help      Show this screen.
     -v --version   Show version.
 
@@ -251,23 +247,7 @@ def check_files(file_mask, date):
 
 
 def check_arguments(args):
-    if args["--save"]:
-        if args["<docx-file>"]:
-            if os.path.exists(args["<docx-file>"]):
-                save_images(args["<docx-file>"], args["<date>"])
-            else:
-                print("File {} does not exist. Could you check file path, pls?")
-        else:
-            print("Please point docx file.")
-    elif args["--parse"]:
-        if args["<txt-dir>"]:
-            if os.path.exists(args["<txt-dir>"]):
-                process_txt_dir(args["<txt-dir>"], args["<date>"])
-            else:
-                print("Directory {} with texts is not exist...".format(args["<txt-dir>"]))
-        else:
-            print("Please point directory to store txt files.")
-    elif args["--check"] and args["<docx-file-mask>"] and args["<date>"]:
+    if args["--check"] and args["<docx-file-mask>"] and args["<date>"]:
         if args["<date>"]:
             check_files(args["<docx-file-mask>"], args["<date>"])
         else:
