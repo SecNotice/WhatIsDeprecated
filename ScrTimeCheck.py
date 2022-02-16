@@ -20,6 +20,8 @@ Options:
 """
 import glob
 import datetime
+
+import date_parser
 import datetime_matcher
 import docopt
 from docx import Document
@@ -28,7 +30,7 @@ from pathlib import Path
 from PIL import Image
 import pytesseract
 from loguru import logger
-
+import progressbar
 
 ScrTimeCheck_version = '2.1.0'
 img_subdir_name = 'img'
@@ -41,7 +43,7 @@ def uniquify(path):
 
     while os.path.exists(path):
         if counter > 0:
-            logger.info("Output directory already exist: {}".format(path))
+            # logger.info("Output directory already exist: {}".format(path))
             path = "{}({}){}".format(filename, str(counter), extension)
         counter += 1
 
@@ -67,33 +69,40 @@ def create_image_dir(work_dir):
 #
 # Создать каталог для изображений.
 # Сохранить в каталог все изображения, которые есть в файле документа
+# TODO: увеличить чёткость и разрешение изображения для повышения качества распознавания
+# https://stackoverflow.com/questions/32454613/python-unsharp-mask
 #
 def save_images(filepath, dir):
     doc = Document(filepath)
 
-    logger.info("Writing images from {} document to separate files...".format(filepath))
     total = 0
     # Количество разрядов в индексе картинки
     num_lengh = len(str(len(doc.inline_shapes)))
-    for count, s in enumerate(doc.inline_shapes):
-        total = count
-        content_id = s._inline.graphic.graphicData.pic.blipFill.blip.embed
-        content_type = doc.part.related_parts[content_id].content_type
-        if not content_type.startswith('image'):
-            continue
-        # Если имена изображений совпадают, дополнить имена файлов уникальными суффиксами.
-        # Цифровые индексы картинок делать одинаковой длины, добивая лидирующими нулями до нужной.
-        img_name = uniquify(Path("{}".format(dir)) / Path("{}_{}".format(str(count + 1).zfill(num_lengh),
-            os.path.basename(doc.part.related_parts[content_id].partname))))
-        img_data = doc.part.related_parts[content_id]._blob
 
-        with open(img_name, 'wb') as fp:
-            fp.write(img_data)
-    logger.info("{} images has been saved.".format(total+1))
+    # Количество изображений
+    num_images = len(doc.inline_shapes)
+    logger.info("Writing {} images from {} document to separate files...".format(str(num_images), filepath))
+
+    with progressbar.ProgressBar(max_value=num_images) as bar:
+        for count, s in enumerate(doc.inline_shapes):
+            total = count
+            content_id = s._inline.graphic.graphicData.pic.blipFill.blip.embed
+            content_type = doc.part.related_parts[content_id].content_type
+            if not content_type.startswith('image'):
+                continue
+            # Если имена изображений совпадают, дополнить имена файлов уникальными суффиксами.
+            # Цифровые индексы картинок делать одинаковой длины, добивая лидирующими нулями до нужной.
+            img_name = uniquify(Path("{}".format(dir)) / Path("{}_{}".format(str(count + 1).zfill(num_lengh),
+                os.path.basename(doc.part.related_parts[content_id].partname))))
+            img_data = doc.part.related_parts[content_id]._blob
+            with open(img_name, 'wb') as fp:
+                fp.write(img_data)
+            bar.update(count)
 
 
 # Грубая проверка на опечатки и ошибки распознавания
 def sounds_reasonable(item):
+    # logger.error(item)
     past = datetime.date(1970, 1, 1)
     future = datetime.date(2099, 12, 31)
 
@@ -103,30 +112,21 @@ def sounds_reasonable(item):
 
 
 # Поиск таймстампов в строке
-def find_timestamps(text, date):
-    # Примеры строк с датами:
-    #
-    # Thu, 01-Jan-197 0 00:00:01 GMT
-    # Jan 16 '16 at 13:33
-    # fo 10.57 11/01/2021 Button DS1996 DI iButton DS1996 DI Bxoa agMuHuCcTpaTopa Yenex
-    # 10.53 11/01/2021 iButton DS1996 DI (Button DS1996 DI Bxoa agmuHwcTpaTopa Yenex
-    # 10.50 11/01/2021 iButton DS1996 DI (Button DS1996 DI Bxoa agmuHwcTpaTopa Yenex
-    # 11:32 11/01/2021 iButton DS1996 DI (Button DS1996 DI Bxoa agmuHwcTpaTopa Yenex
-    # Cm 11.23 11/01/2021 iButton DS1996 DI (Button DS1996 DI Bxoa agmuHwcTpaTopa Yenex
-    # 1199 11/01/2021 iButton DS1996 DI (Button DS1996 DI Bxoa agmuHwcTpaTopa Yenex
-    # 1198 11/01/2021 user! Button DS1994 3 MNonk308aTens cventn ceolinapont Yenex
+def find_timestamps(text, date, lang):
+    searches = [r'%d(\/|\.|\\|\/)%M(\/|\.|\\|\/)%Y',
+                r'%Y(\/|\.|\\|\/)%d(\/|\.|\\|\/)%M',
+                r'%Y']
 
     dtmatcher = datetime_matcher.DatetimeMatcher()
-    search = r'%d(\/|\.|\\)%M(\/|\.|\\)%Y'
 
-    dates = dtmatcher.extract_datetimes(search, text)
     results = []
-
-    if dates:
-        for item in dates:
-            if sounds_reasonable(item):
-                if item.date() < datetime.date.fromisoformat(date):
-                    results.append(item)
+    for srch in searches:
+        dates = dtmatcher.extract_datetimes(srch, text)
+        if not dates is None:
+            for item in dates:
+                if sounds_reasonable(item):
+                    if item.date() < datetime.date.fromisoformat(date):
+                        results.append(item)
     return results
 
 
@@ -138,8 +138,10 @@ def find_timestamps(text, date):
 #
 def img2txt_on_lang(dir_path, text_dir_path, language):
     # Отобразить сообщение для пользователя
+    logger.info("dir_path = {}".format(dir_path))
+    logger.info("text_dir_path = {}".format(text_dir_path))
+    logger.info("language = {}".format(language))
     logger.info("Start text recognition on [{}] language...".format(language))
-    logger.info("dir_path = {}, text_dir_path = {}, language = {}".format(dir_path, text_dir_path, language))
     # Путь к каталогу с изображениями
     d_path = Path(dir_path)
     # Создать подкаталог для текстовых файлов на целевом языке
@@ -149,22 +151,24 @@ def img2txt_on_lang(dir_path, text_dir_path, language):
     if not os.path.exists(lang_dir):
         os.makedirs(lang_dir, exist_ok=True)
 
-    # Перечислить все файлы изображений
-    for img in [f for f in os.listdir(dir_path) if os.path.isfile(Path(dir_path) / Path(f))]:
-        # TODO: Вставить прогрессбар
-        # Собрать полный путь к файлу изображения
-        img_name = d_path / img
-        # Собрать полный путь к файлу с распозанным текстом
-        txt_file_name = lang_dir / "{}.{}.txt".format(img, language)
-        logger.info(txt_file_name)
-        # Если изображение ещё не распознано - запустить распознавание
-        if not os.path.exists(txt_file_name) or os.stat(txt_file_name).st_size == 0:
-            result = pytesseract.image_to_string(Image.open(img_name), lang=language)
-            if result:
-                with open(txt_file_name, 'w', encoding='utf-8') as fp:
-                    fp.write(result)
-        else:
-            continue
+    count = len([name for name in os.listdir(dir_path) if os.path.isfile(Path(dir_path) / Path(name))])
+    with progressbar.ProgressBar(max_value=count) as bar:
+        # Перечислить все файлы изображений
+        for i, img in enumerate([f for f in os.listdir(dir_path) if os.path.isfile(Path(dir_path) / Path(f))]):
+            # Собрать полный путь к файлу изображения
+            img_name = d_path / img
+            # Собрать полный путь к файлу с распознанным текстом
+            txt_file_name = lang_dir / "{}.{}.txt".format(img, language)
+            # logger.info(txt_file_name)
+            # Если изображение ещё не распознано - запустить распознавание
+            if not os.path.exists(txt_file_name) or os.stat(txt_file_name).st_size == 0:
+                result = pytesseract.image_to_string(Image.open(img_name), lang=language)
+                if result:
+                    with open(txt_file_name, 'w', encoding='utf-8') as fp:
+                        fp.write(result)
+            else:
+                continue
+            bar.update(i)
     return lang_dir
 
 
@@ -175,14 +179,15 @@ def img2txt(img_dir_path, text_dir_path):
 
 # Для каждого текстового файла в указанном каталоге
 # распознать дату в каждой строке
-def process_txt_dir(txtdir, date):
+def process_txt_dir(txtdir, date, lang):
     logger.info("Starting text files processing...")
     for txt_file in [f for f in os.listdir(txtdir) if os.path.isfile(Path(txtdir) / Path(f))]:
         with open(Path(txtdir) / Path(txt_file), 'r', encoding='utf-8') as fp:
             text = fp.read()
-            results = find_timestamps(text, date)
+            results = find_timestamps(text, date, lang)
             if results:
                 logger.info("Found in {}:".format(txt_file))
+                # TODO: копировать скриншоты с найденными датами в подкаталог c именем типа "Found_before_%Y-%M-%d"
                 for item in results:
                     logger.info(item.strftime('%d/%m/%Y'))
 
@@ -196,7 +201,6 @@ def show_task(f_mask, date):
             count_files +=1
     if count_files == 0:
         logger.debug("There are no files found.\nExit whithout any work done.")
-        exit(1)
     else:
         if count_files == 1:
             logger.debug("There is one file found.")
@@ -229,11 +233,11 @@ def check_files(file_mask, date):
 
                 # 4 Обработать текст и найти вхождения дат
                 if os.path.exists(txt_eng_dir):
-                    logger.info("English text...")
-                    process_txt_dir(txt_eng_dir, date)
+                    logger.info("Finding dates in English text...")
+                    process_txt_dir(txt_eng_dir, date, "eng")
                 if os.path.exists(txt_rus_dir):
-                    logger.info("Russian text...")
-                    process_txt_dir(txt_rus_dir, date)
+                    logger.info("Finding dates in Russian text...")
+                    process_txt_dir(txt_rus_dir, date, "rus")
 
 
 def check_arguments(args):
