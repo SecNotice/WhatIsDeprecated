@@ -20,8 +20,7 @@ Options:
 """
 import glob
 import datetime
-
-import date_parser
+import shutil
 import datetime_matcher
 import docopt
 from docx import Document
@@ -32,9 +31,9 @@ import pytesseract
 from loguru import logger
 import progressbar
 
-ScrTimeCheck_version = '2.1.0'
+ScrTimeCheck_version = '2.2.0'
 img_subdir_name = 'img'
-
+findings_dir_name = 'found_before_{}'
 
 # Вернуть имя с уникальным префиксом типа "(1)", если есть дубликат
 def uniquify(path):
@@ -43,7 +42,7 @@ def uniquify(path):
 
     while os.path.exists(path):
         if counter > 0:
-            # logger.info("Output directory already exist: {}".format(path))
+            # logger.debug("Output directory already exist: {}".format(path))
             path = "{}({}){}".format(filename, str(counter), extension)
         counter += 1
 
@@ -51,20 +50,22 @@ def uniquify(path):
 
 def create_work_dir(filename, date):
     p = uniquify(Path(os.getcwd()) / Path("{}_{}".format(filename, date)))
+    # logger.debug("Working directory = {}".format(p))
     os.makedirs(p)
-
     return p
 
 
 def create_image_dir(work_dir):
-    image_dir_name = Path(work_dir) / img_subdir_name
+    p = Path(work_dir) / img_subdir_name
+    os.makedirs(p)
+    return p
 
-    logger.info("image_dir_name = {}".format(image_dir_name))
-
-    os.makedirs(image_dir_name)
-
-    return image_dir_name
-
+# Создать каталог для найденных скриншотов-"косяков"
+def create_findings_dir(work_dir, findings_dir_name):
+    p = Path(work_dir) / Path(findings_dir_name)
+    logger.info("Directory for images with wrong dates = {}".format(p))
+    os.makedirs(p)
+    return p
 
 #
 # Создать каталог для изображений.
@@ -140,8 +141,8 @@ def img2txt_on_lang(dir_path, text_dir_path, language):
     # Отобразить сообщение для пользователя
     logger.info("dir_path = {}".format(dir_path))
     logger.info("text_dir_path = {}".format(text_dir_path))
-    logger.info("language = {}".format(language))
-    logger.info("Start text recognition on [{}] language...".format(language))
+    # logger.info("language = {}".format(language))
+    # logger.info("Start text recognition on [{}] language...".format(language))
     # Путь к каталогу с изображениями
     d_path = Path(dir_path)
     # Создать подкаталог для текстовых файлов на целевом языке
@@ -177,35 +178,54 @@ def img2txt(img_dir_path, text_dir_path):
     return img2txt_on_lang(img_dir_path, text_dir_path, 'eng'), img2txt_on_lang(img_dir_path, text_dir_path, 'rus')
 
 
+def restore_img_filepath(file_path):
+    dir, file = os.path.split(file_path)
+    file_name = os.path.basename(file)[:-8]
+    dir_name = Path(dir[:-9]) / Path("img")
+
+    return Path(dir_name) / Path(file_name)
+
+# Скопировать артефакты с "протухшими" датами в спец. каталог
+# TODO: копировать скриншоты с найденными датами в подкаталог c именем типа "Found_before_%Y-%M-%d"
+def copy_to_findings(file_path, dir):
+    # Восстановить имя файла изображения по имени текстового файла, в котором найдены косяки
+    img_file_path = restore_img_filepath(file_path)
+    dest = Path(dir) / Path(os.path.basename(img_file_path))
+    if os.path.exists(img_file_path):
+        shutil.copyfile(img_file_path, dest)
+
+
 # Для каждого текстового файла в указанном каталоге
 # распознать дату в каждой строке
-def process_txt_dir(txtdir, date, lang):
+def process_txt_dir(txtdir, date, lang, dir):
     logger.info("Starting text files processing...")
     for txt_file in [f for f in os.listdir(txtdir) if os.path.isfile(Path(txtdir) / Path(f))]:
-        with open(Path(txtdir) / Path(txt_file), 'r', encoding='utf-8') as fp:
+        recognized_text_file_path = Path(txtdir) / Path(txt_file)
+        with open(recognized_text_file_path, 'r', encoding='utf-8') as fp:
             text = fp.read()
             results = find_timestamps(text, date, lang)
             if results:
                 logger.info("Found in {}:".format(txt_file))
-                # TODO: копировать скриншоты с найденными датами в подкаталог c именем типа "Found_before_%Y-%M-%d"
-                for item in results:
-                    logger.info(item.strftime('%d/%m/%Y'))
+                copy_to_findings(recognized_text_file_path, dir)
+                for item in list(set(results)):
+                    logger.info(item.strftime('%Y-%m-%d'))
 
 
 # Вывести задание на экран
 def show_task(f_mask, date):
-    logger.debug("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, f_mask))
+    logger.info("Task: to find the timestamps earlier than {} at the file(s) `{}`.\n".format(date, f_mask))
     count_files = 0
     for file in glob.iglob(f_mask, recursive=True):
         if os.path.isfile(file):
             count_files +=1
     if count_files == 0:
-        logger.debug("There are no files found.\nExit whithout any work done.")
+        logger.info("There are no files found.\nExit whithout any work done.")
     else:
         if count_files == 1:
-            logger.debug("There is one file found.")
+            logger.info("There is one file found.")
         else:
-            logger.debug("There are {} files found.".format(count_files))
+            logger.info("There are {} files found.".format(count_files))
+
 
 # Проверить file на наличие на скриншотах дат не позже date
 def check_files(file_mask, date):
@@ -215,11 +235,14 @@ def check_files(file_mask, date):
     for file in glob.iglob(file_mask, recursive=True):
         if os.path.isfile(file):
             # Создать рабочий каталог
-            work_dir = create_work_dir(os.path.basename(file)[:-5], date)
+            work_dir = create_work_dir(os.path.basename(file), date)
             logger.add(Path(work_dir) / Path("date_in_images_report.log"), format = "{time} {message}", level = "INFO", rotation="100 KB", compression="zip")
             logger.info("Processing file {}...\n".format(file))
             # Создать каталог для изображений
             image_dir_name = create_image_dir(work_dir)
+            # Создать каталог для найденного
+            current_findings_dir_name = create_findings_dir(work_dir, findings_dir_name.format(date))
+            # logger.debug("current_findings_dir_name = ".format(current_findings_dir_name))
             # Создать каталог для текстов
             txt_dir = Path(work_dir) / Path("text")
             if not os.path.exists(txt_dir):
@@ -234,10 +257,10 @@ def check_files(file_mask, date):
                 # 4 Обработать текст и найти вхождения дат
                 if os.path.exists(txt_eng_dir):
                     logger.info("Finding dates in English text...")
-                    process_txt_dir(txt_eng_dir, date, "eng")
+                    process_txt_dir(txt_eng_dir, date, "eng", current_findings_dir_name)
                 if os.path.exists(txt_rus_dir):
                     logger.info("Finding dates in Russian text...")
-                    process_txt_dir(txt_rus_dir, date, "rus")
+                    process_txt_dir(txt_rus_dir, date, "rus", current_findings_dir_name)
 
 
 def check_arguments(args):
