@@ -32,8 +32,7 @@ from loguru import logger
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
-ScrTimeCheck_version = '2.3.0'
-img_subdir_name = 'img'
+ScrTimeCheck_version = '2.3.1'
 
 # Вернуть имя с уникальным префиксом типа "(1)", если есть дубликат
 def uniquify(path):
@@ -56,7 +55,7 @@ def create_work_dir(filename, date):
 
 
 def create_image_dir(work_dir):
-    p = Path(work_dir) / img_subdir_name
+    p = Path(work_dir) / Path("img")
     os.makedirs(p)
     return p
 
@@ -160,8 +159,6 @@ def convert_img2txt(task):
 
 
 def img2txt_on_lang(dir_path, text_dir_path, language):
-    logger.info(f"dir_path = {dir_path}")
-    logger.info(f"text_dir_path = {text_dir_path}")
     # Создать подкаталог для текстовых файлов на целевом языке
     # Имя подкаталога для текстов на текущем распознаваемом языке
     lang_dir = Path(text_dir_path) / Path(f"{language}")
@@ -238,7 +235,7 @@ def check_files(file_mask, date):
             # Создать рабочий каталог
             work_dir = create_work_dir(os.path.basename(file), date)
             logger.add(Path(work_dir) / Path("date_in_images_report.log"), format = "{time} {message}", level = "INFO", rotation="100 KB", compression="zip")
-            logger.info(f"Processing file {file}...\n")
+            logger.info(f"Processing file {file}...")
             # Создать каталог для изображений
             image_dir_name = create_image_dir(work_dir)
             # Создать каталог для найденного
