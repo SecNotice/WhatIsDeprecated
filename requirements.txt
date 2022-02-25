@@ -3,10 +3,14 @@ datetime_matcher
 docopt
 python-docx
 termcolor
-TextExtract
-textract
+#TextExtract
+#textract
 opencv-python
-date-extractor
+#date-extractor
 docx
+pathlib
 Pillow
 pytesseract
+loguru
+tqdm
+joblib
