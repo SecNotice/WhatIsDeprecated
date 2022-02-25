@@ -87,7 +87,7 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
   
 
-![image-20220225132434064](C:\Users\URM\AppData\Roaming\Typora\typora-user-images\image-20220225132434064.png)
+![image](https://user-images.githubusercontent.com/10373862/155700346-902aa74a-a46a-4117-9cfb-2fb417b879d7.png)
 
 
 
