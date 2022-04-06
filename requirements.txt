@@ -1,13 +1,11 @@
 # https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format
 datetime_matcher
 docopt
-python-docx
+bayoo-docx
 termcolor
 #TextExtract
 #textract
 opencv-python
-#date-extractor
-docx
 pathlib
 Pillow
 pytesseract

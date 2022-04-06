@@ -4,12 +4,13 @@
 Copyleft 2021-22 by Roman M. Yudichev (industrialSAST@ya.ru)
 
 Usage:
-    ScrTimeCheck.py -c | --check <docx-file-mask> <date>
+    ScrTimeCheck.py -c | --check <docx-file-mask> <date> [-r <report-file-name>]
     ScrTimeCheck.py -h | --help
     ScrTimeCheck.py -v | --version
     
 Options:
     -c --check     Комплексная проверка файлов на наличие скриншотов с датами ранее указанной.
+    -r             Создать html-отчёт по результатам анализа.
     -h --help      Show this screen.
     -v --version   Show version.
 
@@ -82,8 +83,20 @@ def save_images(filepath, dir):
     num_images = len(doc.inline_shapes)
     logger.info(f"Writing {str(num_images)} images from {filepath} document to separate files...")
 
+    image_paragraphs = []
+
+    for count, par in enumerate(doc.paragraphs):
+        if 'graphicData' in par._p.xml:
+            image_paragraphs.append(par)
+            print(f"{count} = '{doc.paragraphs[count+1].text}'")
+            doc.paragraphs[count+1].add_comment("comment", author="ScrTimeCheck.py", initials="STC")
+    print(filepath+'.edited.docx')
+    doc.save(filepath+'.edited.docx')
+
+    exit()
     with tqdm(total=num_images) as bar:
         for count, s in enumerate(doc.inline_shapes):
+            # s.add_comment("comment", author="ScrTimeCheck.py", initials="STC")
             content_id = s._inline.graphic.graphicData.pic.blipFill.blip.embed
             content_type = doc.part.related_parts[content_id].content_type
             if not content_type.startswith('image'):

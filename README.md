@@ -16,7 +16,7 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 ### Tesseract:
 **Windows:**  https://github.com/UB-Mannheim/tesseract/wiki
 
-В ходе инсталляции нужно выбрать языки, для которых будут установлены тренировочные данные (как минимум - Russian, Englis):
+В ходе инсталляции нужно выбрать языки, для которых будут установлены тренировочные данные (как минимум - Russian, English):
 ![image](https://user-images.githubusercontent.com/10373862/154070332-4a324de9-3144-420e-af3f-2a9a98f2a9a2.png)
 
 
