@@ -5,11 +5,13 @@ Copyleft 2021-22 by Roman M. Yudichev (industrialSAST@ya.ru)
 
 Usage:
     ScrTimeCheck.py -c | --check <docx-file-mask> <date> [-r <report-file-name>]
+    ScrTimeCheck.py -a | --annotate <docx-file-mask> <date>
     ScrTimeCheck.py -h | --help
     ScrTimeCheck.py -v | --version
     
 Options:
     -c --check     Комплексная проверка файлов на наличие скриншотов с датами ранее указанной.
+    -a --annotate  Проверка по "--check" + разметка устаревших скриншотов примечаниями.
     -r             Создать html-отчёт по результатам анализа.
     -h --help      Show this screen.
     -v --version   Show version.
@@ -32,6 +34,8 @@ import pytesseract
 from loguru import logger
 from tqdm import tqdm
 from joblib import Parallel, delayed
+import tempfile
+from pprint import pprint
 
 ScrTimeCheck_version = '2.3.1'
 
@@ -67,12 +71,9 @@ def create_findings_dir(work_dir, findings_dir_name):
     os.makedirs(p)
     return p
 
-#
+
 # Создать каталог для изображений.
 # Сохранить в каталог все изображения, которые есть в файле документа
-# TODO: увеличить чёткость и разрешение изображения для повышения качества распознавания
-# https://stackoverflow.com/questions/32454613/python-unsharp-mask
-#
 def save_images(filepath, dir):
     doc = Document(filepath)
 
@@ -83,17 +84,6 @@ def save_images(filepath, dir):
     num_images = len(doc.inline_shapes)
     logger.info(f"Writing {str(num_images)} images from {filepath} document to separate files...")
 
-    image_paragraphs = []
-
-    for count, par in enumerate(doc.paragraphs):
-        if 'graphicData' in par._p.xml:
-            image_paragraphs.append(par)
-            print(f"{count} = '{doc.paragraphs[count+1].text}'")
-            doc.paragraphs[count+1].add_comment("comment", author="ScrTimeCheck.py", initials="STC")
-    print(filepath+'.edited.docx')
-    doc.save(filepath+'.edited.docx')
-
-    exit()
     with tqdm(total=num_images) as bar:
         for count, s in enumerate(doc.inline_shapes):
             # s.add_comment("comment", author="ScrTimeCheck.py", initials="STC")
@@ -119,7 +109,7 @@ def sounds_reasonable(item):
 
 
 # Поиск таймстампов в строке
-def find_timestamps(text, date, lang):
+def find_timestamps(text, date):
     searches = [r'%d(\/|\.|\\|\/)%M(\/|\.|\\|\/)%Y',
                 r'%Y(\/|\.|\\|\/)%d(\/|\.|\\|\/)%M',
                 r'%Y']
@@ -184,6 +174,97 @@ def img2txt_on_lang(dir_path, text_dir_path, language):
     Parallel(n_jobs=-1)(delayed(convert_img2txt)(t) for t in tqdm(tasks))
     return lang_dir
 
+def annotate_files(file_mask, date):
+    Parallel(n_jobs=-1)(delayed(process_file)(t, date) for t in tqdm(glob.iglob(file_mask, recursive=True)))
+    return
+
+
+def get_wrong_dates_list(date, pathname, image_blob):
+    dates = []
+
+
+
+    return pathname, dates
+
+
+# Найти в документе {{doc}}  изображение с путём {{item.pathname}}
+# Вставить аннотацию с текстом {{item.dates}}
+def find_and_annotate(doc, item):
+    image_paragraphs = []
+    for count, par in enumerate(doc.paragraphs):
+        if 'graphicData' in par._p.xml:
+            # Вставить аннотацию с указанием на просроченную дату
+
+            image_paragraphs.append(par)
+            print(f"Параграф {count}: '{doc.paragraphs[count + 1].text}'")
+            doc.paragraphs[count + 1].add_comment("comment", author="ScrTimeCheck.py", initials="STC")
+    return
+
+def process_file(file, date):
+    logger.info(f"{file} {date}")
+    if os.path.isfile(file):
+        # Создать рабочий каталог
+        with tempfile.TemporaryDirectory(dir='.') as tmp:
+            work_dir = Path(tmp)
+            # logger.add(Path(work_dir) / Path("date_in_images_report.log"), format="{time} {message}", level="INFO",
+            #            rotation="100 KB", compression="zip")
+            logger.info(f"Processing file {file}...")
+            # Создать каталог для изображений
+            image_dir_name = create_image_dir(work_dir)
+            # Создать каталог для найденного
+            current_findings_dir_name = create_findings_dir(work_dir, f"found_before_{date}")
+            # Создать каталог для текстов
+            txt_dir = Path(work_dir) / Path("text")
+            if not os.path.exists(txt_dir):
+                os.makedirs(txt_dir)
+
+            doc = Document(file)
+
+            # Список путей к файлам изображений с неправильными датами.
+            # Используется потом для поиска путей в параграфах и вставки примечаний.
+            wrong_images_names = []
+
+            # Найти картинки
+            for count, s in enumerate(doc.inline_shapes):
+                # s.add_comment("comment", author="ScrTimeCheck.py", initials="STC")
+                content_id = s._inline.graphic.graphicData.pic.blipFill.blip.embed
+                content_type = doc.part.related_parts[content_id].content_type
+                if not content_type.startswith('image'):
+                    continue
+                # Распознать текст
+                # Найти вхождения дат
+                pathname, dates = get_wrong_dates_list(date, img2txt(doc.part.related_parts[content_id].partname, doc.part.related_parts[content_id]._blob))
+                if dates:
+                    wrong_images_names.append({"pathname": pathname, "dates": dates})
+
+            if wrong_images_names:
+                for item in wrong_images_names:
+                    find_and_annotate(doc, item)
+
+            print(file + '.edited.docx')
+            doc.save(file + '.edited.docx')
+
+            exit()
+
+
+
+
+            # 2 Сохранить картинки в каталог
+            save_images(file, image_dir_name)
+
+            # 3 Получить текст из картинок
+            if os.path.exists(image_dir_name):
+                txt_eng_dir, txt_rus_dir = img2txt(image_dir_name, txt_dir)
+
+                # 4 Обработать текст и найти вхождения дат
+                if os.path.exists(txt_eng_dir):
+                    logger.info("Searching for dates in English text...")
+                    process_txt_dir(txt_eng_dir, date, "eng", current_findings_dir_name)
+                if os.path.exists(txt_rus_dir):
+                    logger.info("Searching for dates in Russian text...")
+                    process_txt_dir(txt_rus_dir, date, "rus", current_findings_dir_name)
+
+    return
 
 # dir_path - путь к каталогу с изображениями
 def img2txt(img_dir_path, text_dir_path):
@@ -274,11 +355,17 @@ def check_files(file_mask, date):
 
 
 def check_arguments(args):
-    if args["--check"] and args["<docx-file-mask>"] and args["<date>"]:
+    if args["--check"] and args["<docx-file-mask>"]:
         if args["<date>"]:
             check_files(args["<docx-file-mask>"], args["<date>"])
         else:
             logger.debug('Please point the deadline date ("YYYY-MM-DD").')
+    elif args["--annotate"] and args["<docx-file-mask>"]:
+        if args["<date>"]:
+            annotate_files(args["<docx-file-mask>"], args["<date>"])
+        else:
+            logger.debug('Please point the deadline date ("YYYY-MM-DD").')
+
     else:
         logger.debug("Please point all the arguments correctly.")
         logger.debug(args)
