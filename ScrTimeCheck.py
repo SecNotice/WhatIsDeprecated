@@ -32,7 +32,7 @@ from loguru import logger
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
-ScrTimeCheck_version = '2.3.1'
+ScrTimeCheck_version = '2.3.2'
 
 # Вернуть имя с уникальным префиксом типа "(1)", если есть дубликат
 def uniquify(path):
@@ -147,6 +147,9 @@ def prepare_tasks(dir_path, lang_dir, language):
 # - имя результирующего файла с текстом txt_file_name
 # - язык распознавания
 def convert_img2txt(task):
+    pytesseract_exe_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    if os.path.exists(pytesseract_exe_path):
+        pytesseract.pytesseract.tesseract_cmd = pytesseract_exe_path
     if not os.path.exists(task['txt_file_name']) or os.stat(task['txt_file_name']).st_size == 0:
         im = Image.open(task['img_name'])
         width, height = im.size
