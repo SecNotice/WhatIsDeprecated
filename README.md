@@ -19,6 +19,12 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 В ходе инсталляции нужно выбрать языки, для которых будут установлены тренировочные данные (как минимум - Russian, Englis):
 ![image](https://user-images.githubusercontent.com/10373862/154070332-4a324de9-3144-420e-af3f-2a9a98f2a9a2.png)
 
+Рекомендуется также устанавливать Tesseract в варианте "Для всех пользователей". 
+В этом случае скрипт сам позаботится о том, чтобы указать правильный путь к исполняемому файлу:
+
+```
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+```
 
 **Linux:** 
 
@@ -91,4 +97,4 @@ Screenshot recognition, information extraction to find obsolete artifacts.
 
 
 
-Пожелания по доработке скрипта или по дополнительной функциональности можно присылать по адресу industrialSAST@ya.ru или в чат https://t.me/isast_as_chat .
+Пожелания по доработке скрипта или по дополнительной функциональности можно присылать по адресу industrialSAST@ya.ru или r.yudichev@fobos-nt.ru.
